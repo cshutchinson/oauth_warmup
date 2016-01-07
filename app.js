@@ -1,9 +1,13 @@
+require('dotenv').load();
 var express = require('express');
 var path = require('path');
 var favicon = require('serve-favicon');
 var logger = require('morgan');
+var session = require('express-session');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
+var GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
+var passport = require('passport')
 
 var routes = require('./routes/index');
 var users = require('./routes/users');
@@ -22,8 +26,51 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+
+app.set('trust proxy', 1) // trust first proxy
+app.use(session({
+  secret: 'keyboard cat',
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: true }
+}))
+app.use(passport.initialize());
+app.use(passport.session());
+
+
+
+passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CONSUMER_KEY,
+    clientSecret: process.env.GOOGLE_CONSUMER_SECRET,
+    callbackURL: "http://localhost:3000/auth/google/callback"
+  },
+  function(token, tokenSecret, profile, done) {
+    console.log(profile);
+    done();
+  }
+));
+
+// above app.use('/', routes);...
+passport.serializeUser(function(user, done) {
+  done(null, user);
+});
+
+passport.deserializeUser(function(user, done) {
+  done(null, user)
+});
+
 app.use('/', routes);
 app.use('/users', users);
+
+app.get('/auth/google',
+  passport.authenticate('google', { scope: 'profile' }));
+
+app.get('/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  function(req, res) {
+    // Successful authentication, redirect home.
+    res.redirect('/');
+  });
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
@@ -55,6 +102,8 @@ app.use(function(err, req, res, next) {
     error: {}
   });
 });
+
+
 
 
 module.exports = app;
